@@ -1,0 +1,8 @@
+## Interface: 11200
+## Title: TurtleSwinger - Weapon Swing Timer
+## Notes: Shows a timer for your weapon swings
+## Author: YourName
+## Version: 1.0
+## SavedVariables: TurtleSwingerDB
+
+TurtleSwinger.lua

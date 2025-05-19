@@ -1,3 +1,4 @@
+
 -- TurtleSwinger: A Weapon Swing Timer for TurtleWoW
 -- Author: Claude
 -- Version: 1.0
@@ -20,7 +21,7 @@ SwingFrame:SetScript("OnDragStop", SwingFrame.StopMovingOrSizing)
 -- Background and border
 SwingFrame.bg = SwingFrame:CreateTexture(nil, "BACKGROUND")
 SwingFrame.bg:SetAllPoints(SwingFrame)
-SwingFrame.bg:SetColorTexture(0, 0, 0, 0.5)
+SwingFrame.bg:SetTexture(0, 0, 0, 0.5) -- Fixed: SetTexture instead of SetColorTexture
 
 SwingFrame.border = CreateFrame("Frame", nil, SwingFrame)
 SwingFrame.border:SetPoint("TOPLEFT", SwingFrame, "TOPLEFT", -1, 1)
@@ -81,13 +82,18 @@ local function UpdateWeaponInfo()
     end
     
     -- Check if player has a two-handed weapon
-    local _, _, _, _, _, _, itemSubType = GetItemInfo(GetInventoryItemLink("player", 16) or "")
-    hasTwoHandWeapon = (itemSubType and (itemSubType == "Two-Handed Axes" or 
-                                           itemSubType == "Two-Handed Maces" or 
-                                           itemSubType == "Two-Handed Swords" or 
-                                           itemSubType == "Staves" or 
-                                           itemSubType == "Fishing Poles" or 
-                                           itemSubType == "Polearms"))
+    local itemLink = GetInventoryItemLink("player", 16)
+    if itemLink then
+        local _, _, _, _, _, _, itemSubType = GetItemInfo(itemLink)
+        hasTwoHandWeapon = (itemSubType and (itemSubType == "Two-Handed Axes" or 
+                                            itemSubType == "Two-Handed Maces" or 
+                                            itemSubType == "Two-Handed Swords" or 
+                                            itemSubType == "Staves" or 
+                                            itemSubType == "Fishing Poles" or 
+                                            itemSubType == "Polearms"))
+    else
+        hasTwoHandWeapon = false
+    end
 end
 
 -- Function to reset the swing timer
@@ -112,24 +118,23 @@ CombatLogFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 CombatLogFrame:RegisterEvent("SPELLCAST_START")
 CombatLogFrame:RegisterEvent("SPELLCAST_STOP")
 
--- Handle combat log events
+-- Handle combat log events - Fixed for vanilla WoW combat log format
 CombatLogFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "COMBAT_LOG_EVENT_UNFILTERED" then
-        local timestamp, subevent, _, sourceGUID, sourceName, sourceFlags, sourceRaidFlags, destGUID, destName = CombatLogGetCurrentEventInfo()
+        -- In vanilla WoW, combat log parameters are different
+        local timestamp, subevent, sourceName, sourceGUID = ...
         
         -- Only process events from the player
-        if sourceGUID ~= UnitGUID("player") then
-            return
-        end
-        
-        -- Handle main-hand swings
-        if subevent == "SWING_DAMAGE" then
-            -- Reset main-hand swing timer
-            ResetMainSwing()
-            
-        elseif subevent == "SWING_MISSED" then
-            -- Reset main-hand swing timer on miss as well
-            ResetMainSwing()
+        if sourceName == UnitName("player") then
+            -- Handle main-hand swings
+            if subevent == "SWING_DAMAGE" then
+                -- Reset main-hand swing timer
+                ResetMainSwing()
+                
+            elseif subevent == "SWING_MISSED" then
+                -- Reset main-hand swing timer on miss as well
+                ResetMainSwing()
+            end
         end
         
     elseif event == "PLAYER_ENTERING_WORLD" or event == "UNIT_INVENTORY_CHANGED" or event == "PLAYER_EQUIPMENT_CHANGED" then
@@ -137,7 +142,8 @@ CombatLogFrame:SetScript("OnEvent", function(self, event, ...)
         UpdateWeaponInfo()
     elseif event == "SPELLCAST_START" then
         -- Check for TurtleWoW abilities that reset swing timer
-        local spellName = select(1, ...)
+        -- In vanilla WoW, the spell name is directly the first argument
+        local spellName = ...
         if spellName == "Holy Strike" or 
            spellName == "Mongoose Bite" or 
            spellName == "Slam" or
@@ -199,6 +205,20 @@ local function CreateOptionsFrame()
     optionsFrame.lockFrameText:SetFont("Fonts\\FRIZQT__.TTF", 12)
     optionsFrame.lockFrameText:SetPoint("LEFT", optionsFrame.lockFrame, "RIGHT", 5, 0)
     optionsFrame.lockFrameText:SetText("Lock Frame Position")
+    
+    -- Connect the options to actual functionality
+    optionsFrame.showOffhand:SetScript("OnClick", function()
+        -- Toggle off-hand tracking (implementation not shown)
+    end)
+    
+    optionsFrame.lockFrame:SetScript("OnClick", function()
+        local locked = optionsFrame.lockFrame:GetChecked()
+        if locked then
+            SwingFrame:EnableMouse(false)
+        else
+            SwingFrame:EnableMouse(true)
+        end
+    end)
     
     return optionsFrame
 end
@@ -270,14 +290,7 @@ local function Initialize()
     local isTurtleWoW = false
     
     -- Try to detect TurtleWoW by checking for specific global variables
-    if GetBuildInfo then
-        local version = GetBuildInfo()
-        if version and version:find("Turtle") then
-            isTurtleWoW = true
-        end
-    end
-    
-    -- Alternative detection method
+    -- GetBuildInfo may not exist in vanilla/TurtleWoW, so we need a safer check
     if _G["TUTORIAL_TITLE_TURTLEWOW"] or _G["TURTLE_WOW"] then
         isTurtleWoW = true
     end
